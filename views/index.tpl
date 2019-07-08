@@ -23,22 +23,22 @@
     /*
     @param file: 文件信息
     @param successChunkNum: 已经成功上传的 chunk 数量
-    @param chunksize: 每一个 chunk 的大小
+    @param chunkSize: 每一个 chunk 的大小
     @param chunkTotalNumber: 总共有多少个 chunk
-    @param MaxConcurrentChunkNumber: 同时并发上传的 chunk 数量
+    @param maxConcurrentChunkNumber: 同时并发上传的 chunk 数量
     @param currentChunksStartIndex: 当前开始上传的 chunk 下标
     */
     function upload_chunks(
       file,
       successChunkNum,
-      chunksize,
+      chunkSize,
       chunkTotalNumber,
-      MaxConcurrentChunkNumber,
+      maxConcurrentChunkNumber,
       currentChunksStartIndex
     ) {
       var currentSuccessChunkNumber = 0;
       var startChunkIndex = currentChunksStartIndex;
-      var endChunkIndex = currentChunksStartIndex + MaxConcurrentChunkNumber;
+      var endChunkIndex = currentChunksStartIndex + maxConcurrentChunkNumber;
       if (endChunkIndex > chunkTotalNumber) {
         endChunkIndex = chunkTotalNumber;
       }
@@ -48,8 +48,8 @@
       */
       for (var i = currentChunksStartIndex; i < endChunkIndex; i++) {
 
-        var start = i * chunksize; //分片的起始位置
-        var end = Math.min(file.size, start + chunksize); //分片的结束位置
+        var start = i * chunkSize; //分片的起始位置
+        var end = Math.min(file.size, start + chunkSize); //分片的结束位置
 
         var form = new FormData();
         form.append("file_name", file.name);
@@ -79,9 +79,9 @@
                 if (successChunkNum === chunkTotalNumber) {
                   console.log("全部上传完成");
                 } else {
-                  if (currentSuccessChunkNumber == MaxConcurrentChunkNumber) {
+                  if (currentSuccessChunkNumber == maxConcurrentChunkNumber) {
                     // 当前并发上传的 chunk 全部成功之后，把 endChunkIndex 作为下一轮的 currentChunksStartIndex
-                    upload_chunks(file, successChunkNum, chunksize, chunkTotalNumber, MaxConcurrentChunkNumber,
+                    upload_chunks(file, successChunkNum, chunkSize, chunkTotalNumber, maxConcurrentChunkNumber,
                       endChunkIndex)
                   }
                 }
@@ -94,7 +94,7 @@
               if (tryCount <= this.retryLimit) {
                 // 如果失败了，则 sleep 5s 之后再继续尝试。
                 setTimeout(function () {
-                  ajax_upload(form, tryCount+1);
+                  ajax_upload(form, tryCount + 1);
                 }, 5000);
                 return;
               }
@@ -114,9 +114,12 @@
       }
 
       var successChunkNum = 0;
-      var chunksize = 100 * 1024 * 1024; //以 100M 为一个分片
-      var chunkTotalNumber = Math.ceil(file.size / chunksize); //总片数
-      upload_chunks(file, successChunkNum, chunksize, chunkTotalNumber, 2, 0)
+      var chunkSize = 100 * 1024 * 1024; //以 100M 为一个分片
+      var chunkTotalNumber = Math.ceil(file.size / chunkSize); //总片数
+      var maxConcurrentChunkNumber = 2;
+      var currentChunksStartIndex = 0;
+      upload_chunks(file, successChunkNum, chunkSize, chunkTotalNumber, maxConcurrentChunkNumber,
+        currentChunksStartIndex)
     }
   </script>
 </body>
