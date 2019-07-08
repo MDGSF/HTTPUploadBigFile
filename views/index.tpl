@@ -47,45 +47,49 @@
         form.append("chunk_index", i + 1); //当前是第几个分片
         form.append("chunk_data", file.slice(start, end));
 
-        $.ajax({
-          url: "/UploadBigFile",
-          type: "POST",
-          data: form,
-          async: true,
-          processData: false,
-          contentType: false,
-          tryCount: 0,
-          retryLimit: 300000,
-          success: function (data) {
-            console.log("data = ", data);
-            if (data.errno === 200) {
-              ++successChunkNum;
-              ++currentSuccessChunkNumber;
-              $("#output").text(successChunkNum + " / " + chunkTotalNumber);
-              if (successChunkNum === chunkTotalNumber) {
-                console.log("全部上传完成");
-              } else {
-                if (currentSuccessChunkNumber == MaxConcurrentChunkNumber) {
-                  upload_chunks(file, successChunkNum, chunksize, chunkTotalNumber, MaxConcurrentChunkNumber,
-                    endChunkIndex)
+        var ajax_upload = function (
+          form,
+          tryCount
+        ) {
+          $.ajax({
+            url: "/UploadBigFile",
+            type: "POST",
+            data: form,
+            async: true,
+            processData: false,
+            contentType: false,
+            retryLimit: 300000,
+            success: function (data) {
+              console.log("data = ", data);
+              if (data.errno === 200) {
+                ++successChunkNum;
+                ++currentSuccessChunkNumber;
+                $("#output").text(successChunkNum + " / " + chunkTotalNumber);
+                if (successChunkNum === chunkTotalNumber) {
+                  console.log("全部上传完成");
+                } else {
+                  if (currentSuccessChunkNumber == MaxConcurrentChunkNumber) {
+                    upload_chunks(file, successChunkNum, chunksize, chunkTotalNumber, MaxConcurrentChunkNumber,
+                      endChunkIndex)
+                  }
                 }
+              } else {
+                console.log("上传失败");
               }
-            } else {
-              console.log("上传失败");
+            },
+            error: function (xhr, textStatus, errorThrown) {
+              console.log("ajax failed, textStatus =", textStatus, ", tryCount =", tryCount);
+              if (tryCount <= this.retryLimit) {
+                setTimeout(function () {
+                  ajax_upload(form, tryCount+1);
+                }, 5000);
+                return;
+              }
             }
-          },
-          error: function (xhr, textStatus, errorThrown) {
-            this.tryCount++;
-            console.log("textStatus =", textStatus, ", tryCount =", this.tryCount);
-            if (this.tryCount <= this.retryLimit) {
-              setTimeout(function() {
-                $.ajax(this);
-              }, 2000);
-              // $.ajax(this);
-              return;
-            }
-          }
-        });
+          });
+        }
+
+        ajax_upload(form, 0);
       }
     }
 
