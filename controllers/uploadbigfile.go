@@ -67,7 +67,9 @@ func (c *TUploadBigFileController) UploadOneChunk() {
 	chunkSize := c.GetParameterInt64("chunk_size")
 	chunkTotalNumber := c.GetParameterInt("file_chunk_total_number")
 	curDir := c.GetParameterString("file_directory")
-	curFileName := fmt.Sprintf("%s_%d", fileName, chunkIndex)
+	maxZeroPaddingNumber := len(c.GetParameterString("file_chunk_total_number"))
+	fileNameFormatStr := "%s_%0" + strconv.Itoa(maxZeroPaddingNumber) + "d"
+	curFileName := fmt.Sprintf(fileNameFormatStr, fileName, chunkIndex)
 
 	beego.Info(fmt.Sprintf("UploadOneChunk, chunkIndex = %v, chunkTotalNumber = %v, chunkSize = %v, file_directory = %v",
 		chunkIndex, chunkTotalNumber, chunkSize, curDir))
