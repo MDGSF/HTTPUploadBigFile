@@ -6,6 +6,8 @@ import (
 )
 
 func init() {
-	beego.Router("/", &controllers.MainController{})
-	beego.Router("/UploadBigFile", &controllers.TUploadBigFileController{})
+	uploadBigFileCtrl := &controllers.TUploadBigFileController{}
+	beego.Router("/", uploadBigFileCtrl, "get:GetUploadPage")
+	beego.Router("/api/v1/UploadBigFileInit", uploadBigFileCtrl, "post:UploadBigFileInit")
+	beego.Router("/api/v1/UploadBigFileChunk", uploadBigFileCtrl, "post:UploadOneChunk")
 }

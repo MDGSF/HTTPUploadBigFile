@@ -17,8 +17,52 @@
 
   <script>
     $("#upload").click(function () {
-      upload();
+      uploadBigFileInit();
     });
+
+    function uploadBigFileInit() {
+      var file = $("#file")[0].files[0];
+      if (file == undefined) {
+        console.log("请先选择文件");
+        return false;
+      }
+
+      var form = new FormData();
+      form.append("file_name", file.name);
+      form.append("file_size", file.size);
+
+      $.ajax({
+        url: "/api/v1/UploadBigFileInit",
+        type: "POST",
+        data: form,
+        async: true,
+        processData: false,
+        contentType: false,
+        success: function (data) {
+          console.log("data = ", data);
+          startUpload(file, data.file_directory)
+        },
+        error: function (xhr, textStatus, errorThrown) {
+          console.log("ajax failed, textStatus =", textStatus, ", tryCount =", tryCount);
+        }
+      });
+    }
+
+    function startUpload(file, fileDirectory) {
+      var successChunkNum = 0;
+      var chunkSize = 100 * 1024 * 1024; //以 100M 为一个分片
+      var chunkTotalNumber = Math.ceil(file.size / chunkSize); //总片数
+      var maxConcurrentChunkNumber = 2;
+      var currentChunksStartIndex = 0;
+      upload_chunks(
+        file,
+        fileDirectory,
+        successChunkNum,
+        chunkSize,
+        chunkTotalNumber,
+        maxConcurrentChunkNumber,
+        currentChunksStartIndex)
+    }
 
     /*
     @param file: 文件信息
@@ -30,6 +74,7 @@
     */
     function upload_chunks(
       file,
+      fileDirectory,
       successChunkNum,
       chunkSize,
       chunkTotalNumber,
@@ -52,6 +97,7 @@
         var end = Math.min(file.size, start + chunkSize); //分片的结束位置
 
         var form = new FormData();
+        form.append("file_directory", fileDirectory);
         form.append("file_name", file.name);
         form.append("file_size", file.size);
         form.append("file_chunk_total_number", chunkTotalNumber); //总片数
@@ -63,7 +109,7 @@
           tryCount
         ) {
           $.ajax({
-            url: "/UploadBigFile",
+            url: "/api/v1/UploadBigFileChunk",
             type: "POST",
             data: form,
             async: true,
@@ -72,21 +118,17 @@
             retryLimit: 300000,
             success: function (data) {
               console.log("data = ", data);
-              if (data.errno === 200) {
-                ++successChunkNum;
-                ++currentSuccessChunkNumber;
-                $("#output").text(successChunkNum + " / " + chunkTotalNumber);
-                if (successChunkNum === chunkTotalNumber) {
-                  console.log("全部上传完成");
-                } else {
-                  if (currentSuccessChunkNumber == maxConcurrentChunkNumber) {
-                    // 当前并发上传的 chunk 全部成功之后，把 endChunkIndex 作为下一轮的 currentChunksStartIndex
-                    upload_chunks(file, successChunkNum, chunkSize, chunkTotalNumber, maxConcurrentChunkNumber,
-                      endChunkIndex)
-                  }
-                }
+              ++successChunkNum;
+              ++currentSuccessChunkNumber;
+              $("#output").text(successChunkNum + " / " + chunkTotalNumber);
+              if (successChunkNum === chunkTotalNumber) {
+                console.log("全部上传完成");
               } else {
-                console.log("上传失败");
+                if (currentSuccessChunkNumber == maxConcurrentChunkNumber) {
+                  // 当前并发上传的 chunk 全部成功之后，把 endChunkIndex 作为下一轮的 currentChunksStartIndex
+                  upload_chunks(file, successChunkNum, chunkSize, chunkTotalNumber, maxConcurrentChunkNumber,
+                    endChunkIndex)
+                }
               }
             },
             error: function (xhr, textStatus, errorThrown) {
@@ -104,22 +146,6 @@
 
         ajax_upload(form, 0);
       }
-    }
-
-    function upload() {
-      var file = $("#file")[0].files[0];
-      if (file == undefined) {
-        console.log("请先选择文件");
-        return false;
-      }
-
-      var successChunkNum = 0;
-      var chunkSize = 100 * 1024 * 1024; //以 100M 为一个分片
-      var chunkTotalNumber = Math.ceil(file.size / chunkSize); //总片数
-      var maxConcurrentChunkNumber = 2;
-      var currentChunksStartIndex = 0;
-      upload_chunks(file, successChunkNum, chunkSize, chunkTotalNumber, maxConcurrentChunkNumber,
-        currentChunksStartIndex)
     }
   </script>
 </body>
