@@ -5,19 +5,16 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/MDGSF/HTTPUploadBigFile/modules/setting"
 	"github.com/astaxie/beego"
 )
 
-var TempDirectory = "/home/huangjian/a/local/gopath/src/github.com/MDGSF/HTTPUploadBigFile/tmp"
-
-func init() {
-	os.MkdirAll(TempDirectory, 0755)
-}
-
+// TUploadBigFileController 大文件上传控制器
 type TUploadBigFileController struct {
 	beego.Controller
 }
 
+// Post 接收 chunk
 func (c *TUploadBigFileController) Post() {
 	c.Ctx.Request.ParseMultipartForm(32 << 20)
 	r := c.Ctx.Request
@@ -39,7 +36,9 @@ func (c *TUploadBigFileController) Post() {
 	}
 	defer chunkfile.Close()
 
-	localFilePath := filepath.Join(TempDirectory, c.Ctx.Request.Form.Get("file_name")+"_"+c.Ctx.Request.Form.Get("chunk_index"))
+	localFilePath := filepath.Join(
+		setting.RuntimeUploadDataDirectory,
+		c.Ctx.Request.Form.Get("file_name")+"_"+c.Ctx.Request.Form.Get("chunk_index"))
 	localFile, err := os.OpenFile(localFilePath, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		beego.Error(err)
