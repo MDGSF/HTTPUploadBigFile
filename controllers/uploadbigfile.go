@@ -37,16 +37,16 @@ func (c *TUploadBigFileController) UploadBigFileInit() {
 	randNumberStr := strconv.Itoa(randNumber)
 	curTimeStr := time.Now().Format("2006-01-02_15-04-05")
 	curFileName := curTimeStr + "_" + fileName + "_" + fileSize + "_" + randNumberStr
-	curDir := filepath.Join(setting.RuntimeUploadDataDirectory, curFileName)
-	err := os.MkdirAll(curDir, 0777)
+	fileDirectory := filepath.Join(setting.RuntimeUploadDataDirectory, curFileName)
+	err := os.MkdirAll(fileDirectory, 0777)
 	if err != nil {
 		beego.Error(err)
 		c.AjaxMsg(MSGERR, "inner error, create directory failed", http.StatusInternalServerError)
 	}
-	beego.Info("curDir =", curDir)
+	beego.Info("fileDirectory =", fileDirectory)
 
 	c.AjaxMap(MSGOK, "upload big file initialize success", map[string]interface{}{
-		"file_directory": curDir,
+		"file_directory": fileDirectory,
 	})
 }
 
@@ -63,16 +63,17 @@ func (c *TUploadBigFileController) UploadOneChunk() {
 	// }
 
 	fileName := c.GetParameterString("file_name")
+	fileSize := c.GetParameterInt64("file_size")
 	chunkIndex := c.GetParameterInt("chunk_index")
 	chunkSize := c.GetParameterInt64("chunk_size")
 	chunkTotalNumber := c.GetParameterInt("file_chunk_total_number")
-	curDir := c.GetParameterString("file_directory")
+	fileDirectory := c.GetParameterString("file_directory")
 	maxZeroPaddingNumber := len(c.GetParameterString("file_chunk_total_number"))
 	fileNameFormatStr := "%s_%0" + strconv.Itoa(maxZeroPaddingNumber) + "d"
 	curFileName := fmt.Sprintf(fileNameFormatStr, fileName, chunkIndex)
 
 	beego.Info(fmt.Sprintf("UploadOneChunk, chunkIndex = %v, chunkTotalNumber = %v, chunkSize = %v, file_directory = %v",
-		chunkIndex, chunkTotalNumber, chunkSize, curDir))
+		chunkIndex, chunkTotalNumber, chunkSize, fileDirectory))
 
 	if len(r.MultipartForm.File) == 0 {
 		beego.Error("len(r.MultipartForm.File) == 0")
@@ -90,7 +91,7 @@ func (c *TUploadBigFileController) UploadOneChunk() {
 	}
 	defer chunkfile.Close()
 
-	localFilePath := filepath.Join(curDir, curFileName)
+	localFilePath := filepath.Join(fileDirectory, curFileName)
 	localFile, err := os.OpenFile(localFilePath, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		beego.Error(err)
@@ -102,5 +103,70 @@ func (c *TUploadBigFileController) UploadOneChunk() {
 		c.AjaxMsg(MSGERR, "inner error, copy data to local file failed", http.StatusInternalServerError)
 	}
 
+	// 这个不能这么判断，多个 chunk 同时上传，最后一个 chunk 有可能先到。
+	if chunkIndex == chunkTotalNumber {
+		go MergeChunkToOneFile(
+			fileDirectory,
+			fileName,
+			fileSize,
+			chunkTotalNumber,
+			fileNameFormatStr,
+		)
+	}
+
 	c.AjaxMsg(MSGOK, fmt.Sprintf("upload chunk %v success", chunkIndex))
+}
+
+/*
+MergeChunkToOneFile 把多个 chunk 合并为一个文件
+@param fileDirectory: chunk 所在的目录
+@param fileName: 文件名
+@param fileSize: 文件大小，单位：字节
+@param chunkTotalNumber: 一共有多少个 chunk
+@param fileNameFormatStr: chunk 文件名格式
+*/
+func MergeChunkToOneFile(
+	fileDirectory string,
+	fileName string,
+	fileSize int64,
+	chunkTotalNumber int,
+	fileNameFormatStr string,
+) {
+	bigFilePath := filepath.Join(fileDirectory, fileName)
+	bigFile, err := os.OpenFile(bigFilePath, os.O_WRONLY|os.O_CREATE, 0666)
+	if err != nil {
+		beego.Error(err)
+		return
+	}
+	beego.Info("start merge file, %v", bigFilePath)
+
+	for chunkIndex := 1; chunkIndex <= chunkTotalNumber; chunkIndex++ {
+		chunkFileName := fmt.Sprintf(fileNameFormatStr, fileName, chunkIndex)
+		chunkFilePath := filepath.Join(fileDirectory, chunkFileName)
+		chunkFile, err := os.OpenFile(chunkFilePath, os.O_RDONLY, 0666)
+		if err != nil {
+			beego.Error(err)
+			return
+		}
+
+		if _, err := io.Copy(bigFile, chunkFile); err != nil {
+			beego.Error(err)
+			return
+		}
+
+		chunkFile.Close()
+	}
+
+	bigFile.Close()
+
+	bigFileInfo, err := os.Stat(bigFilePath)
+	if err != nil {
+		beego.Error(err)
+		return
+	}
+
+	if bigFileInfo.Size() != fileSize {
+		beego.Error(fmt.Sprintf("bigFileInfo.Size() = %v, fileSize = %v", bigFileInfo.Size(), fileSize))
+	}
+	beego.Info("merge file success, %v", bigFilePath)
 }
