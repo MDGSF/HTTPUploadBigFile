@@ -52,7 +52,7 @@
       var successChunkNum = 0;
       var chunkSize = 100 * 1024 * 1024; //以 100M 为一个分片
       var chunkTotalNumber = Math.ceil(file.size / chunkSize); //总片数
-      var maxConcurrentChunkNumber = 2;
+      var maxConcurrentChunkNumber = 2; //同时并发上传的 chunk 数量
       var currentChunksStartIndex = 0;
       upload_chunks(
         file,
@@ -66,6 +66,7 @@
 
     /*
     @param file: 文件信息
+    @param fileDirectory: 每个 chunk 保存在服务器上的目录
     @param successChunkNum: 已经成功上传的 chunk 数量
     @param chunkSize: 每一个 chunk 的大小
     @param chunkTotalNumber: 总共有多少个 chunk

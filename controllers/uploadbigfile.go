@@ -194,6 +194,8 @@ func MergeChunkToOneFile(
 			return
 		}
 
+		beego.Info(fmt.Sprintf("merging chunk %v/%v to file %v...", chunkIndex, chunkTotalNumber, fileName))
+
 		if _, err := io.Copy(bigFile, chunkFile); err != nil {
 			beego.Error(err)
 			return
