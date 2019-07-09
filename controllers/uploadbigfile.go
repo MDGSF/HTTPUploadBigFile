@@ -13,6 +13,10 @@ import (
 	"github.com/astaxie/beego"
 )
 
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 // TUploadBigFileController 大文件上传控制器
 type TUploadBigFileController struct {
 	Controller

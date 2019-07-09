@@ -117,7 +117,7 @@
             contentType: false,
             retryLimit: 300000,
             success: function (data) {
-              console.log("data = ", data);
+              console.log("data =", data);
               ++successChunkNum;
               ++currentSuccessChunkNumber;
               $("#output").text(successChunkNum + " / " + chunkTotalNumber);
@@ -126,7 +126,13 @@
               } else {
                 if (currentSuccessChunkNumber == maxConcurrentChunkNumber) {
                   // 当前并发上传的 chunk 全部成功之后，把 endChunkIndex 作为下一轮的 currentChunksStartIndex
-                  upload_chunks(file, successChunkNum, chunkSize, chunkTotalNumber, maxConcurrentChunkNumber,
+                  upload_chunks(
+                    file,
+                    fileDirectory,
+                    successChunkNum,
+                    chunkSize,
+                    chunkTotalNumber,
+                    maxConcurrentChunkNumber,
                     endChunkIndex)
                 }
               }
