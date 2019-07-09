@@ -8,11 +8,43 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/MDGSF/HTTPUploadBigFile/modules/setting"
 	"github.com/astaxie/beego"
 )
+
+// GUploadFileMap 保存每一个大文件上传过程中需要的数据
+var GUploadFileMap sync.Map
+
+// TBigFileContext 大文件上下文
+type TBigFileContext struct {
+	// FileName 文件名
+	FileName string
+
+	// FileSize 文件大小，单位：字节
+	FileSize int64
+
+	// FileDirectory 保存 chunk 的目录
+	FileDirectory string
+
+	// SuccessReceivedChunkNum 成功收到的 chunk 数量
+	SuccessReceivedChunkNum int
+}
+
+// NewBigFileContext 新建一个大文件上下文
+func NewBigFileContext(
+	fileName string,
+	fileSize int64,
+	fileDirectory string,
+) *TBigFileContext {
+	bigFileCtx := &TBigFileContext{}
+	bigFileCtx.FileName = fileName
+	bigFileCtx.FileSize = fileSize
+	bigFileCtx.FileDirectory = fileDirectory
+	return bigFileCtx
+}
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -32,6 +64,7 @@ func (c *TUploadBigFileController) GetUploadPage() {
 func (c *TUploadBigFileController) UploadBigFileInit() {
 	fileName := c.GetParameterString("file_name")
 	fileSize := c.GetParameterString("file_size")
+	iFileSize := c.GetParameterInt64("file_size")
 
 	randNumber := rand.Int()
 	randNumberStr := strconv.Itoa(randNumber)
@@ -44,6 +77,10 @@ func (c *TUploadBigFileController) UploadBigFileInit() {
 		c.AjaxMsg(MSGERR, "inner error, create directory failed", http.StatusInternalServerError)
 	}
 	beego.Info("fileDirectory =", fileDirectory)
+
+	GUploadFileMap.Store(fileDirectory, NewBigFileContext(
+		fileName, iFileSize, fileDirectory,
+	))
 
 	c.AjaxMap(MSGOK, "upload big file initialize success", map[string]interface{}{
 		"file_directory": fileDirectory,
@@ -103,8 +140,16 @@ func (c *TUploadBigFileController) UploadOneChunk() {
 		c.AjaxMsg(MSGERR, "inner error, copy data to local file failed", http.StatusInternalServerError)
 	}
 
-	// 这个不能这么判断，多个 chunk 同时上传，最后一个 chunk 有可能先到。
-	if chunkIndex == chunkTotalNumber {
+	bigFileCtxI, ok := GUploadFileMap.Load(fileDirectory)
+	if !ok {
+		beego.Error(err)
+		c.AjaxMsg(MSGERR, "inner error, get context from global failed", http.StatusInternalServerError)
+	}
+
+	bigFileCtx := bigFileCtxI.(*TBigFileContext)
+	bigFileCtx.SuccessReceivedChunkNum++
+
+	if bigFileCtx.SuccessReceivedChunkNum == chunkTotalNumber {
 		go MergeChunkToOneFile(
 			fileDirectory,
 			fileName,
@@ -138,7 +183,7 @@ func MergeChunkToOneFile(
 		beego.Error(err)
 		return
 	}
-	beego.Info("start merge file, %v", bigFilePath)
+	beego.Info(fmt.Sprintf("start merge file, %v", bigFilePath))
 
 	for chunkIndex := 1; chunkIndex <= chunkTotalNumber; chunkIndex++ {
 		chunkFileName := fmt.Sprintf(fileNameFormatStr, fileName, chunkIndex)
@@ -167,6 +212,10 @@ func MergeChunkToOneFile(
 
 	if bigFileInfo.Size() != fileSize {
 		beego.Error(fmt.Sprintf("bigFileInfo.Size() = %v, fileSize = %v", bigFileInfo.Size(), fileSize))
+		return
 	}
-	beego.Info("merge file success, %v", bigFilePath)
+
+	GUploadFileMap.Delete(fileDirectory)
+
+	beego.Info(fmt.Sprintf("merge file success, %v", bigFilePath))
 }
