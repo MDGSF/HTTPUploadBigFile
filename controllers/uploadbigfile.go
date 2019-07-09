@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
@@ -51,28 +52,39 @@ func (c *TUploadBigFileController) UploadBigFileInit() {
 
 // UploadOneChunk 接收 chunk
 func (c *TUploadBigFileController) UploadOneChunk() {
-	c.Ctx.Request.ParseMultipartForm(32 << 20)
 	r := c.Ctx.Request
 
-	beego.Info("TUploadBigFileController, c.Ctx.Input.Params() =", c.Ctx.Input.Params())
-	beego.Info("TUploadBigFileController, c.Ctx.Request.Form =", c.Ctx.Request.Form)
-	beego.Info("TUploadBigFileController, c.Ctx.Request.PostForm =", c.Ctx.Request.PostForm)
-	beego.Info("TUploadBigFileController, len(r.MultipartForm.File) =", len(r.MultipartForm.File))
-	for k := range r.MultipartForm.File {
-		beego.Info("k =", k)
-	}
+	// beego.Info("TUploadBigFileController, c.Ctx.Input.Params() =", c.Ctx.Input.Params())
+	// beego.Info("TUploadBigFileController, c.Ctx.Request.Form =", c.Ctx.Request.Form)
+	// beego.Info("TUploadBigFileController, c.Ctx.Request.PostForm =", c.Ctx.Request.PostForm)
+	// beego.Info("TUploadBigFileController, len(r.MultipartForm.File) =", len(r.MultipartForm.File))
+	// for k := range r.MultipartForm.File {
+	// 	beego.Info("k =", k)
+	// }
 
 	fileName := c.GetParameterString("file_name")
-	chunkIndex := c.GetParameterString("chunk_index")
+	chunkIndex := c.GetParameterInt("chunk_index")
+	chunkSize := c.GetParameterInt64("chunk_size")
+	chunkTotalNumber := c.GetParameterInt("file_chunk_total_number")
 	curDir := c.GetParameterString("file_directory")
-	curFileName := fileName + "_" + chunkIndex
+	curFileName := fmt.Sprintf("%s_%d", fileName, chunkIndex)
 
-	chunkfileHeaders := r.MultipartForm.File["chunk_data"]
+	beego.Info(fmt.Sprintf("UploadOneChunk, chunkIndex = %v, chunkTotalNumber = %v, chunkSize = %v, file_directory = %v",
+		chunkIndex, chunkTotalNumber, chunkSize, curDir))
+
+	if len(r.MultipartForm.File) == 0 {
+		beego.Error("len(r.MultipartForm.File) == 0")
+		c.AjaxMsg(MSGERR, "invalid request, no chunk file data", http.StatusBadRequest)
+	}
+	chunkfileHeaders, ok := r.MultipartForm.File["chunk_data"]
+	if !ok {
+		c.AjaxMsg(MSGERR, "invalid request, no chunk_data", http.StatusBadRequest)
+	}
 	chunkfileHeader := chunkfileHeaders[0]
 	chunkfile, err := chunkfileHeader.Open()
 	if err != nil {
 		beego.Error(err)
-		return
+		c.AjaxMsg(MSGERR, "inner error, open chunk file failed", http.StatusInternalServerError)
 	}
 	defer chunkfile.Close()
 
@@ -80,10 +92,13 @@ func (c *TUploadBigFileController) UploadOneChunk() {
 	localFile, err := os.OpenFile(localFilePath, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		beego.Error(err)
-		return
+		c.AjaxMsg(MSGERR, "inner error, create local file failed", http.StatusInternalServerError)
 	}
 	defer localFile.Close()
-	io.Copy(localFile, chunkfile)
+	if written, err := io.Copy(localFile, chunkfile); err != nil || written != chunkSize {
+		beego.Error(err)
+		c.AjaxMsg(MSGERR, "inner error, copy data to local file failed", http.StatusInternalServerError)
+	}
 
-	c.AjaxMsg(MSGOK, "upload chunk success")
+	c.AjaxMsg(MSGOK, fmt.Sprintf("upload chunk %v success", chunkIndex))
 }

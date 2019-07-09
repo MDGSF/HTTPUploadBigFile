@@ -103,6 +103,7 @@
         form.append("file_chunk_total_number", chunkTotalNumber); //总片数
         form.append("chunk_index", i + 1); //当前是第几个分片
         form.append("chunk_data", file.slice(start, end));
+        form.append("chunk_size", end - start);
 
         var ajax_upload = function (
           form,

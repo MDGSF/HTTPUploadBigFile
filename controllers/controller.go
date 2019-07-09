@@ -42,6 +42,15 @@ func (c *Controller) Prepare() {
 	}
 }
 
+// GetParameterInt64 获取客户端 int64 参数
+func (c *Controller) GetParameterInt64(key string) int64 {
+	value, err := c.GetInt64(key)
+	if err != nil {
+		c.AjaxMsg(MSGERR, "invalid parameter "+key, http.StatusBadRequest)
+	}
+	return value
+}
+
 // GetParameterInt 获取客户端 int 参数
 func (c *Controller) GetParameterInt(key string) int {
 	value, err := c.GetInt(key)
